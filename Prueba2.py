@@ -352,100 +352,60 @@ class AutomataGUI:
         dialog.grab_set()
         self.root.wait_window(dialog)
 
-    def draw_transition(self, from_state, to_state, symbol, is_reverse=False):
-        """
-        Draw a transition arrow with a symbol between two states.
-        is_reverse parameter is used to offset bidirectional transitions.
-        """        # Get the bounding boxes of the states
-        if self.automaton.states[to_state].has_transition_to(from_state):
-            is_reverse = True
+    def draw_transition(self, from_state, to_state, symbol):
+        # Registro de transiciones entre pares de estados
+        if not hasattr(self, "transition_counts"):
+            self.transition_counts = {}
+
+        pair = (from_state, to_state)
+        if pair not in self.transition_counts:
+            self.transition_counts[pair] = 0
+
+        self.transition_counts[pair] += 1
+        count = self.transition_counts[pair]
+
         from_coords = self.canvas.coords(from_state)  # [x1, y1, x2, y2]
         to_coords = self.canvas.coords(to_state)  # [x1, y1, x2, y2]
 
-
-        # Calculate the centers of the states
+        # Calcula los centros de los estados
         from_x = (from_coords[0] + from_coords[2]) / 2
         from_y = (from_coords[1] + from_coords[3]) / 2
         to_x = (to_coords[0] + to_coords[2]) / 2
         to_y = (to_coords[1] + to_coords[3]) / 2
 
-        # Handle self-transition (same state)
-        if from_state == to_state:
-            # Create a circular arc above the state
-            center_x = from_x
-            center_y = from_y
-            radius = self.state_radius * 1.5
+        # Calcula el ángulo de la línea y ajusta la posición
+        angle = math.atan2(to_y - from_y, to_x - from_x)
+        offset_distance = 10 * count  # Ajusta el desplazamiento según la cantidad de transiciones
+        offset_x = offset_distance * math.cos(angle + math.pi / 2)
+        offset_y = offset_distance * math.sin(angle + math.pi / 2)
 
-            # Calculate points for a bezier curve to create the loop
-            # Start point - slightly above and to the left of the state
-            start_x = center_x - self.state_radius * 0.5
-            start_y = center_y - self.state_radius
+        from_edge_x = from_x + self.state_radius * math.cos(angle)
+        from_edge_y = from_y + self.state_radius * math.sin(angle)
+        to_edge_x = to_x - self.state_radius * math.cos(angle)
+        to_edge_y = to_y - self.state_radius * math.sin(angle)
 
-            # End point - slightly above and to the right of the state
-            end_x = center_x + self.state_radius * 0.5
-            end_y = center_y - self.state_radius
+        # Aplica el desplazamiento
+        from_edge_x += offset_x
+        from_edge_y += offset_y
+        to_edge_x += offset_x
+        to_edge_y += offset_y
 
-            # Control points - to create the curved loop
-            ctrl1_x = start_x - radius
-            ctrl1_y = start_y - radius
-            ctrl2_x = end_x + radius
-            ctrl2_y = end_y - radius
+        # Dibuja la flecha de transición
+        self.canvas.create_line(
+            from_edge_x, from_edge_y, to_edge_x, to_edge_y,
+            arrow=tk.LAST, smooth=True
+        )
 
-            # Draw the curved line with an arrow
-            self.canvas.create_line(
-                start_x, start_y,
-                ctrl1_x, ctrl1_y,
-                ctrl2_x, ctrl2_y,
-                end_x, end_y,
-                smooth=True,
-                splinesteps=36,
-                arrow=tk.LAST
-            )
+        # Dibuja el símbolo cerca del medio de la línea
+        mid_x = (from_edge_x + to_edge_x) / 2
+        mid_y = (from_edge_y + to_edge_y) / 2
+        self.canvas.create_text(
+            mid_x + offset_x / 2,
+            mid_y + offset_y / 2,
+            text=symbol,
+            font=("Arial", 10)
+        )
 
-            # Place the symbol above the loop
-            self.canvas.create_text(
-                center_x,
-                center_y - radius - self.state_radius,
-                text=symbol,
-                font=("Arial", 10)
-            )
-        else:
-            # Calculate the angle of the line
-            angle = math.atan2(to_y - from_y, to_x - from_x)
-
-            # Offset for bidirectional transitions
-            offset = 15 if is_reverse else 0
-            perpendicular_angle = angle + math.pi / 2
-            offset_x = offset * math.cos(perpendicular_angle)
-            offset_y = offset * math.sin(perpendicular_angle)
-
-            # Adjust the start and end points to be at the edge of the circles
-            from_edge_x = from_x + self.state_radius * math.cos(angle)
-            from_edge_y = from_y + self.state_radius * math.sin(angle)
-            to_edge_x = to_x - self.state_radius * math.cos(angle)
-            to_edge_y = to_y - self.state_radius * math.sin(angle)
-
-            # Apply the offset
-            from_edge_x += offset_x
-            from_edge_y += offset_y
-            to_edge_x += offset_x
-            to_edge_y += offset_y
-
-            # Draw the transition arrow
-            self.canvas.create_line(
-                from_edge_x, from_edge_y, to_edge_x, to_edge_y,
-                arrow=tk.LAST, smooth=True
-            )
-
-            # Draw the symbol near the middle of the line
-            mid_x = (from_edge_x + to_edge_x) / 2
-            mid_y = (from_edge_y + to_edge_y) / 2
-            self.canvas.create_text(
-                mid_x + offset_x / 2,
-                mid_y + offset_y / 2,
-                text=symbol,
-                font=("Arial", 10)
-            )
 
     def clear_canvas(self):
         self.canvas.delete("all")
@@ -465,7 +425,11 @@ class AutomataGUI:
     def convert_to_dfa(self):
         try:
             dfa = self.automaton.to_dfa()
-            self.clear_canvas()
+            self.canvas.delete("all")  # Limpia completamente la vista actual
+            self.automaton = dfa  # Reemplaza el autómata actual con el DFA
+            self.state_counter = 1  # Reinicia el contador de estados
+
+            # Dibuja los estados y transiciones del DFA
             for state_id, state in dfa.states.items():
                 self.create_state_at_fixed_position(state_id, state.is_accepting)
             for state_id, state in dfa.states.items():
@@ -474,6 +438,7 @@ class AutomataGUI:
                         self.draw_transition(state_id, target.state_id, symbol)
         except ValueError as e:
             messagebox.showerror("Error", str(e))
+
 
     def create_state_at_fixed_position(self, state_id, is_accepting):
         x = 100 + (self.state_counter % 5) * 150
