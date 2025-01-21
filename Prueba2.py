@@ -7,7 +7,7 @@ class AutomatonTypeSelector:
         self.selected_type = None
 
         self.dialog = tk.Tk()
-        self.dialog.title("Select Automaton Type")
+        self.dialog.title("Seleccione el Automata a Convertir")
 
         window_width = 300
         window_height = 150
@@ -17,14 +17,14 @@ class AutomatonTypeSelector:
         center_y = int(screen_height / 2 - window_height / 2)
         self.dialog.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
 
-        label = ttk.Label(self.dialog, text="Choose the type of automaton:", padding=20)
+        label = ttk.Label(self.dialog, text="Seleccione el autómata que quiere convertir:", padding=20)
         label.pack()
 
-        btn_nfa = ttk.Button(self.dialog, text="NFA (No ε-transitions)",
+        btn_nfa = ttk.Button(self.dialog, text="AFN (sin transiciones λ)",
                              command=lambda: self.select_type("NFA"))
         btn_nfa.pack(pady=5)
 
-        btn_enfa = ttk.Button(self.dialog, text="ε-NFA",
+        btn_enfa = ttk.Button(self.dialog, text="AFN con transiciones λ",
                               command=lambda: self.select_type("eNFA"))
         btn_enfa.pack(pady=5)
 
@@ -59,6 +59,21 @@ class State:
     def __repr__(self):
         return f"State({self.state_id}, accepting={self.is_accepting})"
 
+    def has_transition_with_symbol(self, target_state, symbol):
+
+        if symbol in self.transitions:
+            return target_state in self.transitions[symbol]
+        return False
+
+    def has_transition_to(self, target_state):
+
+        # Check each list of destination states for all symbols
+        for destinations in self.transitions.values():
+            for dest in destinations:
+                if dest.state_id == target_state:
+                    return True
+        return False
+
 class Automaton:
     def __init__(self):
         self.states = {}  # {state_id: State}
@@ -66,19 +81,19 @@ class Automaton:
 
     def add_state(self, state_id, is_accepting=False):
         if state_id in self.states:
-            raise ValueError(f"State {state_id} already exists!")
+            raise ValueError(f"Estado {state_id} ya existe!")
         state = State(state_id, is_accepting)
         self.states[state_id] = state
         return state
 
     def set_start_state(self, state_id):
         if state_id not in self.states:
-            raise ValueError(f"State {state_id} does not exist!")
+            raise ValueError(f"Estado {state_id} no existe!")
         self.start_state = self.states[state_id]
 
     def add_transition(self, from_state_id, symbol, to_state_id):
         if from_state_id not in self.states or to_state_id not in self.states:
-            raise ValueError("Both states must exist to add a transition.")
+            raise ValueError("Ambos estados deben existir para poder hacer una transición.")
         from_state = self.states[from_state_id]
         to_state = self.states[to_state_id]
         from_state.add_transition(symbol, to_state)
@@ -130,6 +145,36 @@ class Automaton:
                 for target in targets:
                     transitions[symbol].update(target.get_epsilon_closure())
         return transitions
+    def convert_to_nfa(self):
+        """Convert the automaton to one without ε-transitions."""
+        # Create a new automaton to store the result
+        new_automaton = Automaton()
+
+        # Copy states to the new automaton
+        for state_id, state in self.states.items():
+            new_automaton.add_state(state_id, is_accepting=state.is_accepting)
+
+        # Copy start state
+        if self.start_state:
+            new_automaton.set_start_state(self.start_state.state_id)
+
+        # Compute transitions for the new automaton
+        for state_id, state in self.states.items():
+            # Get the epsilon closure for the current state
+            epsilon_closure = self.get_epsilon_closure(state_id)
+
+            # For each symbol (other than ε), aggregate transitions
+            for closure_state in epsilon_closure:
+                for symbol, target_states in closure_state.transitions.items():
+                    if symbol != "λ":  # Skip ε-transitions
+                        for target_state in target_states:
+                            new_automaton.add_transition(state_id, symbol, target_state.state_id)
+
+            # Update accepting states
+            if any(closure_state.is_accepting for closure_state in epsilon_closure):
+                new_automaton.states[state_id].is_accepting = True
+
+        return new_automaton
 
     def __repr__(self):
         return f"Automaton(States: {list(self.states.keys())})"
@@ -162,20 +207,25 @@ class AutomataGUI:
         toolbar = ttk.Frame(self.root)
         toolbar.pack(side='top', fill='x')
 
-        state_btn = ttk.Button(toolbar, text="Add State", command=self.enable_state_mode)
+        state_btn = ttk.Button(toolbar, text="Agregar estado", command=self.enable_state_mode)
         state_btn.pack(side='left', padx=5)
 
-        transition_btn = ttk.Button(toolbar, text="Add Transition", command=self.enable_transition_mode)
+        transition_btn = ttk.Button(toolbar, text="Agregar Transiciones", command=self.enable_transition_mode)
         transition_btn.pack(side='left', padx=5)
+        if self.automaton_type== "NFA":
 
-        convert_dfa_btn = ttk.Button(toolbar, text="Convert to DFA", command=self.convert_to_dfa)
-        convert_dfa_btn.pack(side='left', padx=5)
+            convert_dfa_btn = ttk.Button(toolbar, text="Convertir a AFD", command=self.convert_to_dfa)
+            convert_dfa_btn.pack(side='left', padx=5)
+        else:
+            convert_nfa_btn = ttk.Button(toolbar, text="Convertir a AFN", command=self.convert_to_nfa)
+            convert_nfa_btn.pack(side='left', padx=5)
+            closure_btn = ttk.Button(toolbar, text="Obtener λ-clausura", command=self.compute_epsilon_closure)
+            closure_btn.pack(side='left', padx=5)
 
         clear_btn = ttk.Button(toolbar, text="Clear All", command=self.clear_canvas)
         clear_btn.pack(side='left', padx=5)
 
-        closure_btn = ttk.Button(toolbar, text="Compute ε-Closure", command=self.compute_epsilon_closure)
-        closure_btn.pack(side='left', padx=5)
+
 
     def bind_events(self):
         self.canvas.bind("<Button-1>", self.handle_click)
@@ -302,25 +352,100 @@ class AutomataGUI:
         dialog.grab_set()
         self.root.wait_window(dialog)
 
-    def draw_transition(self, from_state, to_state, symbol):
-        from_coords = self.canvas.coords(from_state)
-        to_coords = self.canvas.coords(to_state)
+    def draw_transition(self, from_state, to_state, symbol, is_reverse=False):
+        """
+        Draw a transition arrow with a symbol between two states.
+        is_reverse parameter is used to offset bidirectional transitions.
+        """        # Get the bounding boxes of the states
+        if self.automaton.states[to_state].has_transition_to(from_state):
+            is_reverse = True
+        from_coords = self.canvas.coords(from_state)  # [x1, y1, x2, y2]
+        to_coords = self.canvas.coords(to_state)  # [x1, y1, x2, y2]
+
+
+        # Calculate the centers of the states
         from_x = (from_coords[0] + from_coords[2]) / 2
         from_y = (from_coords[1] + from_coords[3]) / 2
         to_x = (to_coords[0] + to_coords[2]) / 2
         to_y = (to_coords[1] + to_coords[3]) / 2
-        angle = math.atan2(to_y - from_y, to_x - from_x)
-        from_edge_x = from_x + self.state_radius * math.cos(angle)
-        from_edge_y = from_y + self.state_radius * math.sin(angle)
-        to_edge_x = to_x - self.state_radius * math.cos(angle)
-        to_edge_y = to_y - self.state_radius * math.sin(angle)
-        self.canvas.create_line(
-            from_edge_x, from_edge_y, to_edge_x, to_edge_y,
-            arrow=tk.LAST, smooth=True
-        )
-        mid_x = (from_edge_x + to_edge_x) / 2
-        mid_y = (from_edge_y + to_edge_y) / 2
-        self.canvas.create_text(mid_x, mid_y, text=symbol, font=("Arial", 10))
+
+        # Handle self-transition (same state)
+        if from_state == to_state:
+            # Create a circular arc above the state
+            center_x = from_x
+            center_y = from_y
+            radius = self.state_radius * 1.5
+
+            # Calculate points for a bezier curve to create the loop
+            # Start point - slightly above and to the left of the state
+            start_x = center_x - self.state_radius * 0.5
+            start_y = center_y - self.state_radius
+
+            # End point - slightly above and to the right of the state
+            end_x = center_x + self.state_radius * 0.5
+            end_y = center_y - self.state_radius
+
+            # Control points - to create the curved loop
+            ctrl1_x = start_x - radius
+            ctrl1_y = start_y - radius
+            ctrl2_x = end_x + radius
+            ctrl2_y = end_y - radius
+
+            # Draw the curved line with an arrow
+            self.canvas.create_line(
+                start_x, start_y,
+                ctrl1_x, ctrl1_y,
+                ctrl2_x, ctrl2_y,
+                end_x, end_y,
+                smooth=True,
+                splinesteps=36,
+                arrow=tk.LAST
+            )
+
+            # Place the symbol above the loop
+            self.canvas.create_text(
+                center_x,
+                center_y - radius - self.state_radius,
+                text=symbol,
+                font=("Arial", 10)
+            )
+        else:
+            # Calculate the angle of the line
+            angle = math.atan2(to_y - from_y, to_x - from_x)
+
+            # Offset for bidirectional transitions
+            offset = 15 if is_reverse else 0
+            perpendicular_angle = angle + math.pi / 2
+            offset_x = offset * math.cos(perpendicular_angle)
+            offset_y = offset * math.sin(perpendicular_angle)
+
+            # Adjust the start and end points to be at the edge of the circles
+            from_edge_x = from_x + self.state_radius * math.cos(angle)
+            from_edge_y = from_y + self.state_radius * math.sin(angle)
+            to_edge_x = to_x - self.state_radius * math.cos(angle)
+            to_edge_y = to_y - self.state_radius * math.sin(angle)
+
+            # Apply the offset
+            from_edge_x += offset_x
+            from_edge_y += offset_y
+            to_edge_x += offset_x
+            to_edge_y += offset_y
+
+            # Draw the transition arrow
+            self.canvas.create_line(
+                from_edge_x, from_edge_y, to_edge_x, to_edge_y,
+                arrow=tk.LAST, smooth=True
+            )
+
+            # Draw the symbol near the middle of the line
+            mid_x = (from_edge_x + to_edge_x) / 2
+            mid_y = (from_edge_y + to_edge_y) / 2
+            self.canvas.create_text(
+                mid_x + offset_x / 2,
+                mid_y + offset_y / 2,
+                text=symbol,
+                font=("Arial", 10)
+            )
 
     def clear_canvas(self):
         self.canvas.delete("all")
@@ -357,12 +482,66 @@ class AutomataGUI:
         self.draw_state(x, y, state_id, is_accepting)
         self.state_counter += 1
 
+    def convert_to_nfa(self):
+        """Convert the automaton to an NFA and display it with a circular layout."""
+        try:
+            # Convert the automaton to an NFA
+            nfa = self.automaton.convert_to_nfa()
+
+            # Clear the canvas and reset the automaton
+            self.clear_canvas()
+            self.automaton = Automaton()
+
+
+            # Get the canvas dimensions
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+
+            # Calculate the center and radius for the circular layout
+            center_x = canvas_width / 2
+            center_y = canvas_height / 2
+            radius = min(canvas_width, canvas_height) / 3  # Adjust radius as needed
+
+            # Calculate positions for the states
+            num_states = len(nfa.states)
+            angle_step = 2 * math.pi / num_states
+
+            state_positions = {}
+            for i, (state_id, state) in enumerate(nfa.states.items()):
+                angle = i * angle_step
+                x = center_x + radius * math.cos(angle)
+                y = center_y + radius * math.sin(angle)
+                state_positions[state_id] = (x, y)
+
+                # Create the state on the canvas
+                self.create_state_at_fixed_position(state_id, state.is_accepting)
+
+            # Draw the transitions
+            for state_id, state in nfa.states.items():
+                for symbol, targets in state.transitions.items():
+                    for target in targets:
+                        from_x, from_y = state_positions[state_id]
+                        to_x, to_y = state_positions[target.state_id]
+                        self.draw_transition(state_id, target.state_id, symbol)
+
+            print("Conversion completed")
+
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+
+
+
+
+
 def main():
     selector = AutomatonTypeSelector()
     if selector.selected_type:
         root = tk.Tk()
         app = AutomataGUI(root, selector.selected_type)
         root.mainloop()
+
+
+
 
 if __name__ == "__main__":
     main()
