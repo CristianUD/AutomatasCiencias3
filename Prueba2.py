@@ -2,8 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 import math
 
-#Hola
-
 class AutomatonTypeSelector:
     def __init__(self):
         self.selected_type = None
