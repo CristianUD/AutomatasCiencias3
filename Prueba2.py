@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 import math
+import graphviz
+
+
 
 class AutomatonTypeSelector:
     def __init__(self):
@@ -222,7 +225,7 @@ class AutomataGUI:
             closure_btn = ttk.Button(toolbar, text="Obtener λ-clausura", command=self.compute_epsilon_closure)
             closure_btn.pack(side='left', padx=5)
 
-        clear_btn = ttk.Button(toolbar, text="Clear All", command=self.clear_canvas)
+        clear_btn = ttk.Button(toolbar, text="Borrar todo", command=self.clear_canvas)
         clear_btn.pack(side='left', padx=5)
 
 
@@ -315,9 +318,9 @@ class AutomataGUI:
 
     def prompt_transition_symbol(self, target_state):
         dialog = tk.Toplevel(self.root)
-        dialog.title("Add Transition")
+        dialog.title("agregar transición")
 
-        label = ttk.Label(dialog, text="Enter the transition symbol:")
+        label = ttk.Label(dialog, text="Ingrese el simbolo para transición:")
         label.pack(pady=5)
 
         entry = ttk.Entry(dialog)
@@ -345,7 +348,7 @@ class AutomataGUI:
         confirm_btn = ttk.Button(dialog, text="OK", command=confirm)
         confirm_btn.pack(side="left", padx=5)
 
-        cancel_btn = ttk.Button(dialog, text="Cancel", command=cancel)
+        cancel_btn = ttk.Button(dialog, text="Cancelar", command=cancel)
         cancel_btn.pack(side="right", padx=5)
 
         dialog.transient(self.root)
@@ -366,8 +369,6 @@ class AutomataGUI:
 
         from_coords = self.canvas.coords(from_state)  # [x1, y1, x2, y2]
         to_coords = self.canvas.coords(to_state)  # [x1, y1, x2, y2]
-
-        # Calcula los centros de los estados
         from_x = (from_coords[0] + from_coords[2]) / 2
         from_y = (from_coords[1] + from_coords[3]) / 2
         to_x = (to_coords[0] + to_coords[2]) / 2
@@ -378,33 +379,71 @@ class AutomataGUI:
         offset_distance = 10 * count  # Ajusta el desplazamiento según la cantidad de transiciones
         offset_x = offset_distance * math.cos(angle + math.pi / 2)
         offset_y = offset_distance * math.sin(angle + math.pi / 2)
+        if from_state == to_state:
+            # Create a circular arc above the state
+            center_x = from_x
+            center_y = from_y
+            radius = self.state_radius * 1.5
+            # Calculate points for a bezier curve to create the loop
+            # Start point - slightly above and to the left of the state
+            start_x = center_x - self.state_radius * 0.5
+            start_y = center_y - self.state_radius
+            # End point - slightly above and to the right of the state
+            end_x = center_x + self.state_radius * 0.5
+            end_y = center_y - self.state_radius
+            # Control points - to create the curved loop
+            ctrl1_x = start_x - radius
+            ctrl1_y = start_y - radius
+            ctrl2_x = end_x + radius
+            ctrl2_y = end_y - radius
+            # Draw the curved line with an arrow
+            self.canvas.create_line(
+                start_x, start_y,
+                ctrl1_x, ctrl1_y,
+                ctrl2_x, ctrl2_y,
+                end_x, end_y,
+                smooth=True,
+                splinesteps=36,
+                arrow=tk.LAST
+            )
+            # Place the symbol above the loop
+            self.canvas.create_text(
+                center_x,
+                center_y - radius - self.state_radius,
+                text=symbol,
+                font=("Arial", 10)
+            )
+        else:
 
-        from_edge_x = from_x + self.state_radius * math.cos(angle)
-        from_edge_y = from_y + self.state_radius * math.sin(angle)
-        to_edge_x = to_x - self.state_radius * math.cos(angle)
-        to_edge_y = to_y - self.state_radius * math.sin(angle)
+            # Calcula los centros de los estados
 
-        # Aplica el desplazamiento
-        from_edge_x += offset_x
-        from_edge_y += offset_y
-        to_edge_x += offset_x
-        to_edge_y += offset_y
 
-        # Dibuja la flecha de transición
-        self.canvas.create_line(
-            from_edge_x, from_edge_y, to_edge_x, to_edge_y,
-            arrow=tk.LAST, smooth=True
-        )
+            from_edge_x = from_x + self.state_radius * math.cos(angle)
+            from_edge_y = from_y + self.state_radius * math.sin(angle)
+            to_edge_x = to_x - self.state_radius * math.cos(angle)
+            to_edge_y = to_y - self.state_radius * math.sin(angle)
 
-        # Dibuja el símbolo cerca del medio de la línea
-        mid_x = (from_edge_x + to_edge_x) / 2
-        mid_y = (from_edge_y + to_edge_y) / 2
-        self.canvas.create_text(
-            mid_x + offset_x / 2,
-            mid_y + offset_y / 2,
-            text=symbol,
-            font=("Arial", 10)
-        )
+            # Aplica el desplazamiento
+            from_edge_x += offset_x
+            from_edge_y += offset_y
+            to_edge_x += offset_x
+            to_edge_y += offset_y
+
+            # Dibuja la flecha de transición
+            self.canvas.create_line(
+                from_edge_x, from_edge_y, to_edge_x, to_edge_y,
+                arrow=tk.LAST, smooth=True
+            )
+
+            # Dibuja el símbolo cerca del medio de la línea
+            mid_x = (from_edge_x + to_edge_x) / 2
+            mid_y = (from_edge_y + to_edge_y) / 2
+            self.canvas.create_text(
+                mid_x + offset_x / 2,
+                mid_y + offset_y / 2,
+                text=symbol,
+                font=("Arial", 10)
+            )
 
 
     def clear_canvas(self):
@@ -413,32 +452,49 @@ class AutomataGUI:
         self.state_counter = 1  # Reset counter but keep q0 as the initial state
         self.create_initial_state()
 
+    def clear_canvas_dfa(self):
+        self.canvas.delete("all")
+        self.automaton = Automaton()
+        self.state_counter = 1  # Reset counter but keep q0 as the initial state
+
     def compute_epsilon_closure(self):
-        state_id = simpledialog.askstring("Epsilon Closure", "Enter the state ID:")
+        state_id = simpledialog.askstring("Lambda Clausura Individual", "Ingrese el ID del Estado :")
         if state_id in self.automaton.states:
             closure = self.automaton.get_epsilon_closure(state_id)
             closure_ids = {state.state_id for state in closure}
-            messagebox.showinfo("Epsilon Closure", f"Epsilon closure of {state_id}: {', '.join(closure_ids)}")
+            messagebox.showinfo("Lambda Clausura", f"Lambda clausura de {state_id}: {', '.join(closure_ids)}")
         else:
-            messagebox.showerror("Error", f"State {state_id} does not exist.")
+            messagebox.showerror("Error", f"State {state_id} does no existe.")
 
-    def convert_to_dfa(self):
-        try:
-            dfa = self.automaton.to_dfa()
-            self.canvas.delete("all")  # Limpia completamente la vista actual
-            self.automaton = dfa  # Reemplaza el autómata actual con el DFA
-            self.state_counter = 1  # Reinicia el contador de estados
+    def layout_states_circular(self, automaton):
+        self.clear_canvas_dfa()
+        self.automaton = automaton
 
-            # Dibuja los estados y transiciones del DFA
-            for state_id, state in dfa.states.items():
-                self.create_state_at_fixed_position(state_id, state.is_accepting)
-            for state_id, state in dfa.states.items():
-                for symbol, targets in state.transitions.items():
-                    for target in targets:
-                        self.draw_transition(state_id, target.state_id, symbol)
-        except ValueError as e:
-            messagebox.showerror("Error", str(e))
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
 
+        center_x = canvas_width / 2
+        center_y = canvas_height / 2
+        radius = min(canvas_width, canvas_height) / 3  # Radio ajustable
+
+        num_states = len(automaton.states)
+        angle_step = 2 * math.pi / num_states
+
+        state_positions = {}
+        for i, (state_id, state) in enumerate(automaton.states.items()):
+            angle = i * angle_step
+            x = center_x + radius * math.cos(angle)
+            y = center_y + radius * math.sin(angle)
+            state_positions[state_id] = (x, y)
+
+            self.draw_state(x, y, state_id, state.is_accepting, is_initial=(state_id == automaton.start_state.state_id))
+
+        for state_id, state in automaton.states.items():
+            for symbol, targets in state.transitions.items():
+                for target in targets:
+                    from_x, from_y = state_positions[state_id]
+                    to_x, to_y = state_positions[target.state_id]
+                    self.draw_transition(state_id, target.state_id, symbol)
 
     def create_state_at_fixed_position(self, state_id, is_accepting):
         x = 100 + (self.state_counter % 5) * 150
@@ -447,52 +503,49 @@ class AutomataGUI:
         self.draw_state(x, y, state_id, is_accepting)
         self.state_counter += 1
 
-    def convert_to_nfa(self):
-        """Convert the automaton to an NFA and display it with a circular layout."""
+    def convert_to_dfa(self):
         try:
-            # Convert the automaton to an NFA
-            nfa = self.automaton.convert_to_nfa()
-
-            # Clear the canvas and reset the automaton
-            self.clear_canvas()
-            self.automaton = Automaton()
-
-
-            # Get the canvas dimensions
-            canvas_width = self.canvas.winfo_width()
-            canvas_height = self.canvas.winfo_height()
-
-            # Calculate the center and radius for the circular layout
-            center_x = canvas_width / 2
-            center_y = canvas_height / 2
-            radius = min(canvas_width, canvas_height) / 3  # Adjust radius as needed
-
-            # Calculate positions for the states
-            num_states = len(nfa.states)
-            angle_step = 2 * math.pi / num_states
-
-            state_positions = {}
-            for i, (state_id, state) in enumerate(nfa.states.items()):
-                angle = i * angle_step
-                x = center_x + radius * math.cos(angle)
-                y = center_y + radius * math.sin(angle)
-                state_positions[state_id] = (x, y)
-
-                # Create the state on the canvas
-                self.create_state_at_fixed_position(state_id, state.is_accepting)
-
-            # Draw the transitions
-            for state_id, state in nfa.states.items():
-                for symbol, targets in state.transitions.items():
-                    for target in targets:
-                        from_x, from_y = state_positions[state_id]
-                        to_x, to_y = state_positions[target.state_id]
-                        self.draw_transition(state_id, target.state_id, symbol)
-
-            print("Conversion completed")
-
+            dfa = self.automaton.to_dfa()
+            self.layout_states_circular(dfa)
+            render_automaton(dfa)
         except ValueError as e:
             messagebox.showerror("Error", str(e))
+
+    def convert_to_nfa(self):
+        try:
+            nfa = self.automaton.convert_to_nfa()
+            self.layout_states_circular(nfa)
+            render_automaton(nfa)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+
+
+
+
+
+def render_automaton(automaton, filename="automaton"):
+    dot = graphviz.Digraph(format="png")
+
+    # Mark accepting states with a double circle
+    for state_id, state in automaton.states.items():
+        shape = "doublecircle" if state.is_accepting else "circle"
+        dot.node(state_id, shape=shape, label=state_id)
+
+    # Add transitions
+    for state_id, state in automaton.states.items():
+        for symbol, targets in state.transitions.items():
+            for target in targets:
+                label = "λ" if symbol == "λ" else symbol
+                dot.edge(state_id, target.state_id, label=label)
+
+    # Highlight start state with an arrow from a blank node
+    if automaton.start_state:
+        start_state_id = automaton.start_state.state_id
+        dot.node("start", shape="none", label="")
+        dot.edge("start", start_state_id)
+
+    # Render the automaton to file
+    dot.render(filename, view=True)
 
 
 
