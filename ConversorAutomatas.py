@@ -106,6 +106,22 @@ class Automaton:
             raise ValueError(f"State {state_id} does not exist!")
         return self.states[state_id].get_epsilon_closure()
 
+    def rename_states_sequentially(self):
+        if not self.states:
+            return  # No states to rename
+
+        # Get the order of states as per insertion order
+        ordered_states = list(self.states.values())
+
+        # Generate new names and update each state's ID
+        new_states = {}
+        for index, state in enumerate(ordered_states):
+            new_name = f'q{index}'
+            state.state_id = new_name
+            new_states[new_name] = state
+
+        # Update the automaton's states dictionary
+        self.states = new_states
     def to_dfa(self):
         if not self.start_state:
             raise ValueError("The automaton has no start state defined.")
@@ -131,7 +147,7 @@ class Automaton:
                     dfa.add_state(target_state_id, any(s.is_accepting for s in target_closure))
                     unprocessed.append(target_closure)
                 dfa.add_transition(current_state_id, symbol, target_state_id)
-
+        dfa.rename_states_sequentially()
         return dfa
 
     def _get_state_id(self, closure):
@@ -148,32 +164,42 @@ class Automaton:
                 for target in targets:
                     transitions[symbol].update(target.get_epsilon_closure())
         return transitions
+
     def convert_to_nfa(self):
         """Convert the automaton to one without ε-transitions."""
-        # Create a new automaton to store the result
         new_automaton = Automaton()
 
-        # Copy states to the new automaton
+        # Copy all states to the new automaton
         for state_id, state in self.states.items():
             new_automaton.add_state(state_id, is_accepting=state.is_accepting)
 
-        # Copy start state
+        # Set the start state
         if self.start_state:
             new_automaton.set_start_state(self.start_state.state_id)
 
-        # Compute transitions for the new automaton
+        # For each state in the original automaton
         for state_id, state in self.states.items():
-            # Get the epsilon closure for the current state
+            # Compute the ε-closure of the current state
             epsilon_closure = self.get_epsilon_closure(state_id)
 
-            # For each symbol (other than ε), aggregate transitions
+            # Aggregate transitions for all states in the ε-closure
+            combined_transitions = {}
             for closure_state in epsilon_closure:
                 for symbol, target_states in closure_state.transitions.items():
-                    if symbol != "λ":  # Skip ε-transitions
-                        for target_state in target_states:
-                            new_automaton.add_transition(state_id, symbol, target_state.state_id)
+                    if symbol == "λ":
+                        continue  # Skip ε-transitions
+                    if symbol not in combined_transitions:
+                        combined_transitions[symbol] = set()
+                    # Add all states reachable from the ε-closure of target states
+                    for target_state in target_states:
+                        combined_transitions[symbol].update(target_state.get_epsilon_closure())
 
-            # Update accepting states
+            # Add the aggregated transitions to the new automaton
+            for symbol, target_states in combined_transitions.items():
+                for target_state in target_states:
+                    new_automaton.add_transition(state_id, symbol, target_state.state_id)
+
+            # Update the accepting status of the state
             if any(closure_state.is_accepting for closure_state in epsilon_closure):
                 new_automaton.states[state_id].is_accepting = True
 
@@ -449,13 +475,13 @@ class AutomataGUI:
     def clear_canvas(self):
         self.canvas.delete("all")
         self.automaton = Automaton()
-        self.state_counter = 1  # Reset counter but keep q0 as the initial state
+        self.state_counter = 1
         self.create_initial_state()
 
     def clear_canvas_dfa(self):
         self.canvas.delete("all")
         self.automaton = Automaton()
-        self.state_counter = 1  # Reset counter but keep q0 as the initial state
+        self.state_counter = 1
 
     def compute_epsilon_closure(self):
         state_id = simpledialog.askstring("Lambda Clausura Individual", "Ingrese el ID del Estado :")
@@ -464,7 +490,7 @@ class AutomataGUI:
             closure_ids = {state.state_id for state in closure}
             messagebox.showinfo("Lambda Clausura", f"Lambda clausura de {state_id}: {', '.join(closure_ids)}")
         else:
-            messagebox.showerror("Error", f"State {state_id} does no existe.")
+            messagebox.showerror("Error", f"State {state_id} no existe.")
 
     def layout_states_circular(self, automaton):
         self.clear_canvas_dfa()
@@ -516,6 +542,7 @@ class AutomataGUI:
             nfa = self.automaton.convert_to_nfa()
             self.layout_states_circular(nfa)
             render_automaton(nfa)
+            print ("completado")
         except ValueError as e:
             messagebox.showerror("Error", str(e))
 
