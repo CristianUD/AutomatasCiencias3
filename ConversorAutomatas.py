@@ -264,10 +264,10 @@ class AutomataGUI:
     def style_buttons(self):
         style = ttk.Style()
         style.configure("TButton",
-                        font=("Bahnschrift", 12, "bold"),
+                        font=("Bahnschrift", 10, "bold"),
                         borderwidth=2,
                         foreground="black",
-                        background="#4CAF50")  # Light green background
+                        background="#b03737")  # Light green background
         style.map("TButton",
                   background=[("active", "#45a049")],  # Darker green when hovered
                   relief=[("pressed", "sunken")])  # Sunken effect when clicked
