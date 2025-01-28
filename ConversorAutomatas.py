@@ -214,10 +214,13 @@ class AutomataGUI:
         self.root.title(f"Automata Designer - {automaton_type}")
         self.automaton = Automaton()
         self.automaton_type = automaton_type
+        self.style_buttons()
 
         # Canvas setup
         self.canvas = tk.Canvas(root, width=800, height=600, bg='white')
         self.canvas.pack(expand=True, fill='both')
+        self.canvas.after(100, self.add_color_convention_legend)
+
 
         self.state_counter = 1  # Start with q1 since q0 is reserved for the initial state
         self.state_radius = 30
@@ -231,6 +234,43 @@ class AutomataGUI:
 
         # Create the initial state q0
         self.create_initial_state()
+
+    def add_color_convention_legend(self):
+        legend_x, legend_y = 10, self.canvas.winfo_height() - 90  # Bottom left
+        padding = 5
+        spacing = 30
+
+        # Background box for better visibility
+        self.canvas.create_rectangle(
+            legend_x - padding, legend_y - padding,
+            legend_x + 180, legend_y + 90,
+            fill="white", outline="black", width=1
+        )
+
+        # Initial State
+        self.canvas.create_oval(legend_x, legend_y, legend_x + 20, legend_y + 20, fill="green", width=2)
+        self.canvas.create_text(legend_x + 40, legend_y + 10, text="Inicial", font=("Arial", 10), anchor="w")
+
+        # Normal State
+        legend_y += spacing
+        self.canvas.create_oval(legend_x, legend_y, legend_x + 20, legend_y + 20, fill="blue", width=2)
+        self.canvas.create_text(legend_x + 40, legend_y + 10, text="Normal", font=("Arial", 10), anchor="w")
+
+        # Final State
+        legend_y += spacing
+        self.canvas.create_oval(legend_x, legend_y, legend_x + 20, legend_y + 20, fill="orange", width=2)
+        self.canvas.create_text(legend_x + 40, legend_y + 10, text="Final", font=("Arial", 10), anchor="w")
+
+    def style_buttons(self):
+        style = ttk.Style()
+        style.configure("TButton",
+                        font=("Bahnschrift", 12, "bold"),
+                        borderwidth=2,
+                        foreground="black",
+                        background="#4CAF50")  # Light green background
+        style.map("TButton",
+                  background=[("active", "#45a049")],  # Darker green when hovered
+                  relief=[("pressed", "sunken")])  # Sunken effect when clicked
 
     def create_toolbar(self):
         toolbar = ttk.Frame(self.root)
@@ -253,6 +293,10 @@ class AutomataGUI:
 
         clear_btn = ttk.Button(toolbar, text="Borrar todo", command=self.clear_canvas)
         clear_btn.pack(side='left', padx=5)
+        
+        back_btn = ttk.Button(toolbar, text="Volver al Menú Principal", command=self.go_back_to_main_menu)
+        back_btn.pack(side='left', padx=5)
+
 
 
 
@@ -298,12 +342,14 @@ class AutomataGUI:
 
     def draw_state(self, x, y, state_id, is_accepting, is_initial=False):
         self.canvas.delete(state_id)
+        fill_color = "light green" if is_initial else "#f9c989" if is_accepting else "light blue"
         self.canvas.create_oval(
             x - self.state_radius, y - self.state_radius,
             x + self.state_radius, y + self.state_radius,
             tags=(state_id, "state"),
-            width=2
-        )
+            width=2, fill=fill_color
+)
+
         if is_accepting:
             self.canvas.create_oval(
                 x - self.state_radius + 5, y - self.state_radius + 5,
@@ -318,9 +364,11 @@ class AutomataGUI:
                 arrow=tk.LAST,
                 width=2
             )
+        font_style = ("Bahnschrift", 12, "italic") if is_accepting else ("Bahnschrift", 12)
         self.canvas.create_text(
-            x, y, text=state_id, tags=(state_id, "state"), font=("Arial", 12)
+            x, y, text=state_id, tags=(state_id, "state"), font=font_style
         )
+
 
     def handle_transition_click(self, event):
         x, y = event.x, event.y
@@ -437,7 +485,7 @@ class AutomataGUI:
                 center_x,
                 center_y - radius - self.state_radius,
                 text=symbol,
-                font=("Arial", 10)
+                font=("Bahnschrift", 10, "bold")
             )
         else:
 
@@ -458,7 +506,7 @@ class AutomataGUI:
             # Dibuja la flecha de transición
             self.canvas.create_line(
                 from_edge_x, from_edge_y, to_edge_x, to_edge_y,
-                arrow=tk.LAST, smooth=True
+                arrow=tk.LAST, smooth=True, width=2
             )
 
             # Dibuja el símbolo cerca del medio de la línea
@@ -468,8 +516,9 @@ class AutomataGUI:
                 mid_x + offset_x / 2,
                 mid_y + offset_y / 2,
                 text=symbol,
-                font=("Arial", 10)
+                font=("Bahnschrift", 10, "bold")
             )
+
 
 
     def clear_canvas(self):
@@ -482,6 +531,11 @@ class AutomataGUI:
         self.canvas.delete("all")
         self.automaton = Automaton()
         self.state_counter = 1
+        
+    def go_back_to_main_menu(self):
+        self.root.destroy()
+        main()
+
 
     def compute_epsilon_closure(self):
         state_id = simpledialog.askstring("Lambda Clausura Individual", "Ingrese el ID del Estado :")
