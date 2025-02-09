@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
+import ExpresionesRegulares
 import math
 import graphviz
 
@@ -205,6 +206,134 @@ class Automaton:
 
         return new_automaton
 
+    def construir_desde_postfix(self, postfix):
+        """
+        Construye un autómata finito no determinista (NFA) a partir de una expresión en postfix.
+
+        Parámetros:
+        - postfix: La expresión regular en notación postfix.
+
+        Retorna:
+        - El autómata construido.
+        """
+        pila = []
+        contador_estados = 0
+
+        for token in postfix:
+            if token == '&':  # Concatenación
+                nfa2 = pila.pop()  # Segundo autómata
+                nfa1 = pila.pop()  # Primer autómata
+
+                # Contar la cantidad de estados en nfa1
+
+
+
+                # Fusionar los estados de nfa1 y nfa2 en el nuevo autómata
+                for estado_id, estado in nfa2.states.items():
+                    nfa1.add_state(estado_id,is_accepting=False)
+                for estado_id, estado in nfa2.states.items():
+                    for simbolo, destinos in estado.transitions.items():
+                        for destino in destinos:
+                            # Asegurarse de que el estado destino también esté renombrado
+                            destino_id = destino.state_id
+                            nfa1.add_transition(estado_id, simbolo, destino_id)
+
+                # Conectar los estados finales de nfa1 al estado inicial de nfa2 usando transiciones lambda
+                for estado in nfa1.states.values():
+                    if estado.is_accepting:  # Si es un estado final de nfa1
+                        estado.is_accepting = False  # Desmarcar como no aceptación
+                        nfa1.add_transition(estado.state_id, "λ", nfa2.start_state.state_id)  # Transición lambda a nfa2
+                for estado in nfa2.states.values():
+                    if estado.is_accepting:
+                        nfa1.states[estado.state_id].is_accepting = True
+                # Actualizar el estado inicial y final del nuevo autómata
+                nfa1.start_state = nfa1.start_state  # El estado inicial sigue siendo el de nfa1
+
+                # Agregar el nuevo autómata a la pila
+                pila.append(nfa1)
+
+            elif token == '|':  # Unión
+                nfa2 = pila.pop()
+                nfa1 = pila.pop()
+                # Contar la cantidad de estados en nfa1
+                cantidad_estados_nfa1 = len(nfa1.states)+1
+
+                # Renombrar los estados de nfa2 sumando la cantidad de estados de nfa1
+                estados_renombrados_nfa2 = {}
+                for estado_id, estado in nfa2.states.items():
+                    nuevo_id = f"q{int(estado_id[1:]) + cantidad_estados_nfa1}"  # Renombrar el estado
+                    estado.state_id = nuevo_id
+                    estados_renombrados_nfa2[nuevo_id] = estado
+
+                # Crear un nuevo autómata para la unión
+                automata = Automaton()
+
+                # 1. Copiar todos los estados de nfa1 al nuevo autómata
+                for estado_id, estado in nfa1.states.items():
+                    automata.add_state(estado_id, estado.is_accepting)
+
+                # 2. Copiar todas las transiciones de nfa1 al nuevo autómata
+                for estado_id, estado in nfa1.states.items():
+                    for simbolo, destinos in estado.transitions.items():
+                        for destino in destinos:
+                            automata.add_transition(estado_id, simbolo, destino.state_id)
+
+                # 3. Copiar todos los estados de nfa2 al nuevo autómata
+                for estado_id, estado in estados_renombrados_nfa2.items():
+                    automata.add_state(estado_id, estado.is_accepting)
+
+                # 4. Copiar todas las transiciones de nfa2 al nuevo autómata
+                for estado_id, estado in estados_renombrados_nfa2.items():
+                    for simbolo, destinos in estado.transitions.items():
+                        for destino in destinos:
+                            automata.add_transition(estado_id, simbolo, destino.state_id)
+
+                # Crear un nuevo estado inicial y final para la unión
+                nuevo_inicio = State(f"q{len(automata.states)}")  # Nuevo estado inicial
+               # nuevo_final = State(f"q{len(automata.states) + 1}", is_accepting=True)  # Nuevo estado final
+
+                # Agregar los nuevos estados al autómata
+                automata.add_state(nuevo_inicio.state_id)
+                #automata.add_state(nuevo_final.state_id, is_accepting=True)
+
+                # Establecer el nuevo estado inicial
+                automata.set_start_state(nuevo_inicio.state_id)
+
+                # Conectar el nuevo estado inicial a los estados iniciales de nfa1 y nfa2
+                automata.add_transition(nuevo_inicio.state_id, "λ", nfa1.start_state.state_id)
+                automata.add_transition(nuevo_inicio.state_id, "λ", nfa2.start_state.state_id)
+
+                # Agregar el nuevo autómata a la pila
+                pila.append(automata)
+
+            elif token == '*':  # Clausura de Kleene
+                nfa = pila.pop()
+                for estado in nfa.states.values():
+                    if estado.is_accepting:  # Si es un estado final
+                        nfa.add_transition(estado.state_id, "λ", nfa.start_state.state_id)  # Transición lambda a inicio
+                nfa.states.get(nfa.start_state.state_id).is_accepting = True
+                # Agregar el nuevo autómata a la pila
+                pila.append(nfa)
+
+            else:  # Símbolo básico
+                inicio = State(f"q{contador_estados}")
+                contador_estados += 1
+                final = State(f"q{contador_estados}", is_accepting=True)
+                contador_estados += 1
+
+                automata = Automaton()
+                automata.add_state(inicio.state_id)
+                automata.add_state(final.state_id, is_accepting=True)
+                automata.set_start_state(inicio.state_id)
+                automata.add_transition(inicio.state_id, token, final.state_id)
+
+                pila.append(automata)
+
+        # El NFA final es el último en la pila
+        nfa_final = pila.pop()
+        nfa_final.rename_states_sequentially()
+        return nfa_final
+
     def __repr__(self):
         return f"Automaton(States: {list(self.states.keys())})"
 
@@ -217,7 +346,7 @@ class AutomataGUI:
         self.style_buttons()
 
         # Canvas setup
-        self.canvas = tk.Canvas(root, width=800, height=600, bg='white')
+        self.canvas = tk.Canvas(root, width=960, height=720, bg='white')
         self.canvas.pack(expand=True, fill='both')
         self.canvas.after(100, self.add_color_convention_legend)
 
@@ -526,16 +655,18 @@ class AutomataGUI:
         self.automaton = Automaton()
         self.state_counter = 1
         self.create_initial_state()
+        self.add_color_convention_legend()
 
     def clear_canvas_dfa(self):
         self.canvas.delete("all")
         self.automaton = Automaton()
         self.state_counter = 1
-        
+        self.add_color_convention_legend()
+    """    
     def go_back_to_main_menu(self):
         self.root.destroy()
         main()
-
+"""
 
     def compute_epsilon_closure(self):
         state_id = simpledialog.askstring("Lambda Clausura Individual", "Ingrese el ID del Estado :")
@@ -629,6 +760,59 @@ def render_automaton(automaton, filename="automaton"):
     dot.render(filename, view=True)
 
 
+class InterfazGrafica:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Conversor de Expresiones Regulares a Autómatas")
+
+        # Etiqueta y campo de entrada para la expresión regular
+        self.label = tk.Label(root, text="Ingrese la expresión regular:")
+        self.label.pack(pady=10)
+
+        self.entrada = tk.Entry(root, width=50)
+        self.entrada.pack(pady=10)
+
+        # Botón para convertir la expresión a un autómata
+        self.boton = tk.Button(root, text="Convertir a Autómata", command=self.convertir_a_automata)
+        self.boton.pack(pady=20)
+
+    def convertir_a_automata(self):
+        """
+        Obtiene la expresión regular ingresada por el usuario, la valida y la convierte a un autómata.
+        Si la expresión no es válida, muestra un mensaje de error.
+        """
+        expresion = self.entrada.get().strip()
+        if not expresion:
+            messagebox.showerror("Error", "Por favor, ingrese una expresión regular.")
+            return
+
+        try:
+            # Crear una instancia de ExpresionRegular
+            expresion_regular = ExpresionesRegulares.ExpresionRegular(expresion)
+
+            # Validar la expresión
+            es_valida, mensaje = expresion_regular.validar_expresion()
+            if not es_valida:
+                messagebox.showerror("Error", f"Expresión inválida: {mensaje}")
+                return
+
+            # Convertir a postfix y construir el autómata
+            postfix = expresion_regular.convertir_a_postfix()
+            automata = Automaton()
+            lambdanfa = automata.construir_desde_postfix(postfix)
+            nfa = lambdanfa.convert_to_nfa()
+            nfa.set_start_state('q0')
+            dfa =nfa.to_dfa()
+            render_automaton(dfa)
+
+
+            # Mostrar el resultado
+            messagebox.showinfo("Autómata Generado", f"Autómata creado:")
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error: {str(e)}")
+
+
+
 
 
 
@@ -636,11 +820,12 @@ def main():
     selector = AutomatonTypeSelector()
     if selector.selected_type:
         root = tk.Tk()
-        app = AutomataGUI(root, selector.selected_type)
+       # app = AutomataGUI(root, selector.selected_type)
+        app = InterfazGrafica(root)
         root.mainloop()
-
 
 
 
 if __name__ == "__main__":
     main()
+
