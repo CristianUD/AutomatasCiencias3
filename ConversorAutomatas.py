@@ -106,7 +106,7 @@ class Automaton:
         if state_id not in self.states:
             raise ValueError(f"State {state_id} does not exist!")
         return self.states[state_id].get_epsilon_closure()
-
+    """
     def rename_states_sequentially(self):
         if not self.states:
             return  # No states to rename
@@ -123,6 +123,33 @@ class Automaton:
 
         # Update the automaton's states dictionary
         self.states = new_states
+        """
+
+    def rename_states_sequentially(self):
+        if not self.states:
+            return  # No hay estados para renombrar
+
+        # Obtener el estado inicial
+        estado_inicial = self.start_state
+
+        # Crear una lista de estados, asegurando que el estado inicial esté primero
+        ordered_states = [estado_inicial]  # El estado inicial va primero
+        for estado in self.states.values():
+            if estado != estado_inicial:  # Evitar duplicar el estado inicial
+                ordered_states.append(estado)
+
+        # Generar nuevos nombres y actualizar cada estado
+        new_states = {}
+        for index, state in enumerate(ordered_states):
+            new_name = f'q{index}'  # q0, q1, q2, ...
+            state.state_id = new_name
+            new_states[new_name] = state
+
+        # Actualizar el diccionario de estados del autómata
+        self.states = new_states
+
+        # Asegurarse de que el estado inicial sea q0
+        self.start_state = self.states['q0']
     def to_dfa(self):
         if not self.start_state:
             raise ValueError("The automaton has no start state defined.")
@@ -800,8 +827,9 @@ class InterfazGrafica:
             postfix = expresion_regular.convertir_a_postfix()
             automata = Automaton()
             lambdanfa = automata.construir_desde_postfix(postfix)
+            #lambdanfa.rename_states_sequentially()
             nfa = lambdanfa.convert_to_nfa()
-            nfa.set_start_state('q0')
+            #nfa.set_start_state(lambdanfa.start_state)
             dfa =nfa.to_dfa()
             render_automaton(dfa)
 
