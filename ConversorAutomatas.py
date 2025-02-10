@@ -252,13 +252,20 @@ class Automaton:
                 nfa1 = pila.pop()  # Primer autómata
 
                 # Contar la cantidad de estados en nfa1
+                cantidad_estados_nfa1 = len(nfa1.states)
 
 
+                # Renombrar los estados de nfa2 sumando la cantidad de estados de nfa1
+                estados_renombrados_nfa2 = {}
+                for estado_id, estado in nfa2.states.items():
+                    nuevo_id = f"q{int(estado_id[1:]) + cantidad_estados_nfa1}"  # Renombrar el estado
+                    estado.state_id = nuevo_id
+                    estados_renombrados_nfa2[nuevo_id] = estado
 
                 # Fusionar los estados de nfa1 y nfa2 en el nuevo autómata
-                for estado_id, estado in nfa2.states.items():
+                for estado_id, estado in estados_renombrados_nfa2.items():
                     nfa1.add_state(estado_id,is_accepting=False)
-                for estado_id, estado in nfa2.states.items():
+                for estado_id, estado in estados_renombrados_nfa2.items():
                     for simbolo, destinos in estado.transitions.items():
                         for destino in destinos:
                             # Asegurarse de que el estado destino también esté renombrado
@@ -277,13 +284,14 @@ class Automaton:
                 nfa1.start_state = nfa1.start_state  # El estado inicial sigue siendo el de nfa1
 
                 # Agregar el nuevo autómata a la pila
+                nfa1.rename_states_sequentially()
                 pila.append(nfa1)
 
             elif token == '|':  # Unión
                 nfa2 = pila.pop()
                 nfa1 = pila.pop()
                 # Contar la cantidad de estados en nfa1
-                cantidad_estados_nfa1 = len(nfa1.states)+1
+                cantidad_estados_nfa1 = len(nfa1.states)
 
                 # Renombrar los estados de nfa2 sumando la cantidad de estados de nfa1
                 estados_renombrados_nfa2 = {}
@@ -318,6 +326,7 @@ class Automaton:
                 # Crear un nuevo estado inicial y final para la unión
                 nuevo_inicio = State(f"q{len(automata.states)}")  # Nuevo estado inicial
                # nuevo_final = State(f"q{len(automata.states) + 1}", is_accepting=True)  # Nuevo estado final
+                contador_estados+=1
 
                 # Agregar los nuevos estados al autómata
                 automata.add_state(nuevo_inicio.state_id)
@@ -331,14 +340,21 @@ class Automaton:
                 automata.add_transition(nuevo_inicio.state_id, "λ", nfa2.start_state.state_id)
 
                 # Agregar el nuevo autómata a la pila
+                automata.rename_states_sequentially()
                 pila.append(automata)
-
             elif token == '*':  # Clausura de Kleene
                 nfa = pila.pop()
                 for estado in nfa.states.values():
                     if estado.is_accepting:  # Si es un estado final
                         nfa.add_transition(estado.state_id, "λ", nfa.start_state.state_id)  # Transición lambda a inicio
                 nfa.states.get(nfa.start_state.state_id).is_accepting = True
+                # Agregar el nuevo autómata a la pila
+                pila.append(nfa)
+            elif token == '+':  # Clausura de Kleene
+                nfa = pila.pop()
+                for estado in nfa.states.values():
+                    if estado.is_accepting:  # Si es un estado final
+                        nfa.add_transition(estado.state_id, "λ", nfa.start_state.state_id)  # Transición lambda a inicio
                 # Agregar el nuevo autómata a la pila
                 pila.append(nfa)
 
@@ -831,7 +847,8 @@ class InterfazGrafica:
             nfa = lambdanfa.convert_to_nfa()
             #nfa.set_start_state(lambdanfa.start_state)
             dfa =nfa.to_dfa()
-            render_automaton(dfa)
+            render_automaton(dfa,"dfa")
+            render_automaton(lambdanfa,"enfa")
 
 
             # Mostrar el resultado

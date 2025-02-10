@@ -11,7 +11,7 @@ class ExpresionRegular:
         - False si la expresión es inválida.
         """
         pila = []  # Pila para verificar paréntesis balanceados
-        caracteres_validos = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()|*&")
+        caracteres_validos = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()|*&+")
 
         for i, char in enumerate(self.expresion):
             # Verificar si el carácter es válido
@@ -33,7 +33,7 @@ class ExpresionRegular:
                     return False, f"Operador '{char}' en posición inválida: {i}"
                 # Un operador no puede estar seguido de otro operador
                 siguiente_char = self.expresion[i + 1] if i + 1 < len(self.expresion) else None
-                if siguiente_char in {'|', '&', '*'}:
+                if siguiente_char in {'|', '&', '*','+'}:
                     return False, f"Operador '{char}' seguido de otro operador en la posición {i}"
 
             # Verificar clausura de Kleene (*)
@@ -43,7 +43,7 @@ class ExpresionRegular:
                     return False, f"Operador '*' en posición inválida: {i}"
                 # El operador * no puede estar seguido de otro operador
                 siguiente_char = self.expresion[i + 1] if i + 1 < len(self.expresion) else None
-                if siguiente_char in {'|', '&', '*'}:
+                if siguiente_char in {'|', '&', '*','+'}:
                     return False, f"Operador '*' seguido de otro operador en la posición {i}"
 
         # Verificar si hay paréntesis sin cerrar
@@ -62,9 +62,9 @@ class ExpresionRegular:
         prev_char = None
         for char in self.expresion:
             if prev_char is not None:
-                prev_is_symbol = prev_char not in {'*', '|', '(', ')', '&'}
-                curr_is_symbol = char not in {'*', '|', '(', ')', '&'}
-                if (prev_char in {'*', ')', '&'} or prev_is_symbol) and (char == '(' or curr_is_symbol):
+                prev_is_symbol = prev_char not in {'*','+', '|', '(', ')', '&'}
+                curr_is_symbol = char not in {'*','+', '|', '(', ')', '&'}
+                if (prev_char in {'*', ')', '&','+'} or prev_is_symbol) and (char == '(' or curr_is_symbol):
                     procesada.append('&')  # Usamos & para concatenación
             procesada.append(char)
             prev_char = char
@@ -80,7 +80,7 @@ class ExpresionRegular:
         expresion_preprocesada = self.preprocesar()
         tokens = list(expresion_preprocesada)
 
-        precedencia = {'|': 1, '&': 2, '*': 3}  # Usamos & para concatenación
+        precedencia = {'|': 1, '&': 2, '*': 3, '+': 3}  # Usamos & para concatenación
         salida = []
         pila = []
 
