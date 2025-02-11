@@ -258,7 +258,7 @@ class Automaton:
                 # Renombrar los estados de nfa2 sumando la cantidad de estados de nfa1
                 estados_renombrados_nfa2 = {}
                 for estado_id, estado in nfa2.states.items():
-                    nuevo_id = f"q{int(estado_id[1:]) + cantidad_estados_nfa1}"  # Renombrar el estado
+                    nuevo_id = f"q{int(estado_id[1:]) + cantidad_estados_nfa1}b"  # Renombrar el estado
                     estado.state_id = nuevo_id
                     estados_renombrados_nfa2[nuevo_id] = estado
 
@@ -296,7 +296,7 @@ class Automaton:
                 # Renombrar los estados de nfa2 sumando la cantidad de estados de nfa1
                 estados_renombrados_nfa2 = {}
                 for estado_id, estado in nfa2.states.items():
-                    nuevo_id = f"q{int(estado_id[1:]) + cantidad_estados_nfa1}"  # Renombrar el estado
+                    nuevo_id = f"q{int(estado_id[1:]) + cantidad_estados_nfa1 -1 }a"  # Renombrar el estado
                     estado.state_id = nuevo_id
                     estados_renombrados_nfa2[nuevo_id] = estado
 
@@ -324,7 +324,7 @@ class Automaton:
                             automata.add_transition(estado_id, simbolo, destino.state_id)
 
                 # Crear un nuevo estado inicial y final para la unión
-                nuevo_inicio = State(f"q{len(automata.states)}")  # Nuevo estado inicial
+                nuevo_inicio = State(f"q{len(automata.states)+1}")  # Nuevo estado inicial
                # nuevo_final = State(f"q{len(automata.states) + 1}", is_accepting=True)  # Nuevo estado final
                 contador_estados+=1
 
@@ -350,7 +350,7 @@ class Automaton:
                 nfa.states.get(nfa.start_state.state_id).is_accepting = True
                 # Agregar el nuevo autómata a la pila
                 pila.append(nfa)
-            elif token == '+':  # Clausura de Kleene
+            elif token == '+':  # Clausura positiva  de Kleene
                 nfa = pila.pop()
                 for estado in nfa.states.values():
                     if estado.is_accepting:  # Si es un estado final
@@ -803,7 +803,7 @@ def render_automaton(automaton, filename="automaton"):
     dot.render(filename, view=True)
 
 
-class InterfazGrafica:
+class InterfazGraficaRegex:
     def __init__(self, root):
         self.root = root
         self.root.title("Conversor de Expresiones Regulares a Autómatas")
@@ -847,6 +847,7 @@ class InterfazGrafica:
             nfa = lambdanfa.convert_to_nfa()
             #nfa.set_start_state(lambdanfa.start_state)
             dfa =nfa.to_dfa()
+            render_automaton(nfa,"nfa")
             render_automaton(dfa,"dfa")
             render_automaton(lambdanfa,"enfa")
 
@@ -866,7 +867,7 @@ def main():
     if selector.selected_type:
         root = tk.Tk()
        # app = AutomataGUI(root, selector.selected_type)
-        app = InterfazGrafica(root)
+        #app = InterfazGraficaRegex(root)
         root.mainloop()
 
 
